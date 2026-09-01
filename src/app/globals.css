@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: #f3ead8;
+  --ink: #1c1814;
+  --rule: #c9bba0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(ellipse at top, rgba(196, 43, 28, 0.06), transparent 42%),
+    linear-gradient(180deg, rgba(28, 24, 20, 0.03) 0, transparent 18rem);
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+::selection {
+  background: #c42b1c;
+  color: #f3ead8;
+}
+
+.rule {
+  border-color: var(--rule);
+}
+
+input[type="file"] {
+  max-width: 100%;
+}
