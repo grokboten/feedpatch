@@ -50,4 +50,12 @@ describe("runPipeline", () => {
     expect(emptyIds!.patched.gtin).toBe("");
     expect(emptyIds!.patched.mpn).toBe("");
   });
+
+  it("marks some sample rows green even with the honest 500×500 warning", () => {
+    const { feed, mapping } = sample();
+    const rows = runPipeline(feed, mapping, DEFAULT_FIXES, { paid: true });
+    const green = rows.filter((r) => r.status === "green");
+    expect(green.length).toBeGreaterThan(0);
+    expect(green.some((r) => r.issues.some((i) => i.code === "image_size_unproven"))).toBe(true);
+  });
 });

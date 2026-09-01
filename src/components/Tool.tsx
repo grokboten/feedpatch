@@ -8,6 +8,7 @@ import {
   collectActionIssues,
   csvBlob,
   downloadBlob,
+  freeWatermarkedTsv,
   itemsToPrimaryTsv,
   itemsToSupplementalTsv,
   metaCatalogCsv,
@@ -123,7 +124,7 @@ export function Tool() {
       if (data.ok) {
         setPaid(true);
         if (persist) saveStoredLicense(key.trim());
-        setLicenseMsg(data.source === "dev" ? "Dev license accepted." : "License unlocked.");
+        setLicenseMsg(data.source === "dev" ? "Demo license accepted. Paid exports unlocked." : data.source === "signed" ? "Signed license accepted. Paid exports unlocked." : "License unlocked.");
       } else {
         setPaid(false);
         setLicenseMsg(data.error || "Invalid license key");
@@ -143,19 +144,24 @@ export function Tool() {
     });
   }
 
-  async function downloadFree() {
+  function downloadFreeTsv() {
+    // One user gesture → one <a download>. Chrome often keeps only the first click
+    // when TSV and xlsx fire back-to-back; the watermarked TSV is the product.
     const items = rows.slice(0, FREE_EXPORT_ROWS).map((r) => r.patched);
-    downloadBlob("feedpatch-primary-free.tsv", tsvBlob(itemsToPrimaryTsv(items, true)));
+    const { blob } = freeWatermarkedTsv(items);
+    downloadBlob("feedpatch-primary-free.tsv", blob);
+    setSuccess(true);
+  }
+
+  async function downloadFreeXlsx() {
     const issues = collectActionIssues(rows, FREE_ACTION_ISSUES);
     const buf = await actionPlanXlsx(issues);
-    await sleep(250);
     downloadBlob(
       "feedpatch-action-free.xlsx",
       new Blob([buf], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       }),
     );
-    setSuccess(true);
   }
 
   async function downloadPaid() {
@@ -192,12 +198,22 @@ export function Tool() {
             <li key={line}>{line}</li>
           ))}
         </ol>
-        <button
-          className="mt-10 rounded-full bg-ink px-5 py-2.5 text-sm text-paper"
-          onClick={() => setSuccess(false)}
-        >
-          Back to the table
-        </button>
+        <div className="mt-10 flex flex-wrap gap-3">
+          {paid ? null : (
+            <button
+              className="rounded-full border border-ink px-5 py-2.5 text-sm"
+              onClick={() => void downloadFreeXlsx()}
+            >
+              Download action xlsx
+            </button>
+          )}
+          <button
+            className="rounded-full bg-ink px-5 py-2.5 text-sm text-paper"
+            onClick={() => setSuccess(false)}
+          >
+            Back to the table
+          </button>
+        </div>
       </section>
     );
   }
@@ -250,7 +266,7 @@ export function Tool() {
             void unlock(licenseInput);
           }}
         >
-          <label className="text-sm font-medium">License key</label>
+          <label className="text-sm font-medium">License key (demo: FEEDPATCH-DEV)</label>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <input
               value={licenseInput}
@@ -265,7 +281,12 @@ export function Tool() {
           <p className="mt-2 text-xs text-slate">
             {paid
               ? "Full primary TSV, supplemental, action xlsx, Meta catalog, last 10 runs."
-              : `Free: first ${FREE_SCORED_ROWS} SKUs scored. Download is a ${FREE_EXPORT_ROWS}-row watermarked TSV plus ${FREE_ACTION_ISSUES} Excel issues.`}
+              : `Free: first ${FREE_SCORED_ROWS} SKUs scored. The watermark button downloads a ${FREE_EXPORT_ROWS}-row TSV; action xlsx is a second click (${FREE_ACTION_ISSUES} issues).`}
+          </p>
+          <p className="mt-2 text-xs text-slate">
+            Demo license key: <code className="font-mono text-ink">{DEV_LICENSE_KEY}</code> unlocks
+            paid exports when Gumroad env vars are not set. When Gumroad is configured, that demo
+            key is rejected and a real license is required.
           </p>
           {licenseMsg ? <p className="mt-1 text-xs">{licenseMsg}</p> : null}
           {paid ? (
@@ -313,12 +334,20 @@ export function Tool() {
                   Download GMC pack
                 </button>
               ) : (
-                <button
-                  className="rounded-full bg-ink px-4 py-2 text-sm text-paper"
-                  onClick={() => void downloadFree()}
-                >
-                  Download 5-row watermark
-                </button>
+                <>
+                  <button
+                    className="rounded-full bg-ink px-4 py-2 text-sm text-paper"
+                    onClick={() => downloadFreeTsv()}
+                  >
+                    Download 5-row watermark
+                  </button>
+                  <button
+                    className="rounded-full border border-ink px-4 py-2 text-sm"
+                    onClick={() => void downloadFreeXlsx()}
+                  >
+                    Action xlsx
+                  </button>
+                </>
               )}
             </div>
           </div>

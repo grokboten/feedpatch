@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   collectActionIssues,
+  freeWatermarkedTsv,
   itemsToPrimaryTsv,
   itemsToSupplementalTsv,
   MERCHANT_CENTER_NOTE,
   metaCatalogCsv,
+  tsvBlob,
 } from "@/lib/export";
 import { emptyItem } from "@/lib/fix";
 import type { ScoredRow } from "@/lib/types";
@@ -40,6 +42,27 @@ describe("exports", () => {
     expect(tsv.split("\n").filter(Boolean).length).toBe(1 + FREE_EXPORT_ROWS);
     expect(tsv).toContain("[FeedPatch free]");
     expect(tsv).toContain("Watermarked 5-row export");
+  });
+
+  it("free export still builds a TSV string/blob with watermarked rows", () => {
+    const items = Array.from({ length: 8 }, (_, i) => ({
+      ...emptyItem(),
+      id: `S${i}`,
+      title: `Item ${i}`,
+      description: "A product",
+    }));
+    const { text, blob } = freeWatermarkedTsv(items);
+    expect(text).toContain("[FeedPatch free]");
+    expect(text).toContain("Watermarked 5-row export");
+    expect(text).toContain("S0");
+    expect(text).not.toContain("S5");
+    const lines = text.replace(/^\uFEFF/, "").split("\n").filter(Boolean);
+    expect(lines).toHaveLength(1 + FREE_EXPORT_ROWS);
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.size).toBeGreaterThan(0);
+    expect(blob.type).toMatch(/tab-separated-values/);
+    const viaHelper = tsvBlob(text);
+    expect(viaHelper.size).toBe(blob.size);
   });
 
   it("supplemental TSV is id plus changed columns only", () => {

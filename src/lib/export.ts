@@ -1,5 +1,5 @@
 import type { GmcField, GmcItem, Issue, ScoredRow } from "./types";
-import { GMC_FIELDS } from "./types";
+import { FREE_EXPORT_ROWS, GMC_FIELDS } from "./types";
 
 export function tsvEscape(value: string): string {
   const s = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -24,6 +24,12 @@ export function itemsToPrimaryTsv(items: GmcItem[], watermark = false): string {
     return GMC_FIELDS.map((f) => tsvEscape(row[f] ?? "")).join("\t");
   });
   return `\uFEFF${headers}\n${lines.join("\n")}\n`;
+}
+
+/** Free-tier primary feed: first N rows, watermarked titles, TSV string + blob. */
+export function freeWatermarkedTsv(items: GmcItem[]): { text: string; blob: Blob } {
+  const text = itemsToPrimaryTsv(items.slice(0, FREE_EXPORT_ROWS), true);
+  return { text, blob: tsvBlob(text) };
 }
 
 export function supplementalColumns(rows: ScoredRow[]): GmcField[] {
@@ -161,11 +167,17 @@ export function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = filename;
+  a.setAttribute("download", filename);
+  a.rel = "noopener";
+  a.style.display = "none";
   document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2_000);
+  // One programmatic click per user gesture. Chrome often drops later <a download> clicks
+  // in the same handler (and ignores download= for some text MIME types if the node is gone).
+  a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+  window.setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 4_000);
 }
 
 export function tsvBlob(text: string): Blob {

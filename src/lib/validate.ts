@@ -201,10 +201,16 @@ export function collectDuplicateIds(items: GmcItem[]): Set<string> {
   return dup;
 }
 
+/** Honest but non-blocking: we warn, we do not fake a 500×500 pass, and we do not hold the row at amber. */
+export const INFORMATIONAL_CODES = new Set(["image_size_unproven"]);
+
 export function statusForIssues(issues: Issue[] | null): "red" | "amber" | "green" | "unscored" {
   if (!issues) return "unscored";
   if (issues.some((i) => i.severity === "error")) return "red";
-  if (issues.some((i) => i.severity === "warning")) return "amber";
+  const blockingWarnings = issues.some(
+    (i) => i.severity === "warning" && !INFORMATIONAL_CODES.has(i.code),
+  );
+  if (blockingWarnings) return "amber";
   return "green";
 }
 

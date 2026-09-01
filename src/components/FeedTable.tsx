@@ -84,9 +84,9 @@ export function FeedTable({ rows }: { rows: ScoredRow[] }) {
         </tbody>
       </table>
       <p className="px-3 py-2 text-[11px] text-slate">
-        Showing {PREVIEW.length} of {GMC_FIELDS.length} GMC columns. Red = blocking. Amber includes
-        image 500×500 unproven (we do not fetch). Green = no remaining issues. Changed cells are
-        marked in red type.
+        Showing {PREVIEW.length} of {GMC_FIELDS.length} GMC columns. Red = blocking. Amber =
+        machine-checkable warnings (title promo, ALL CAPS, length). Image 500×500 stays an honest
+        warning and does not by itself block green/ready. Changed cells are marked in red type.
       </p>
     </div>
   );
