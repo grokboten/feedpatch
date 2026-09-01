@@ -76,7 +76,7 @@ export function validateItem(item: GmcItem, duplicateIds: Set<string>): Issue[] 
     } else {
       issues.push({
         field: "image_link",
-        severity: "warning",
+        severity: "info",
         code: "image_size_unproven",
         message:
           "Cannot prove 500×500 without fetching the image — not marked as pass",
@@ -201,7 +201,7 @@ export function collectDuplicateIds(items: GmcItem[]): Set<string> {
   return dup;
 }
 
-/** Honest but non-blocking: we warn, we do not fake a 500×500 pass, and we do not hold the row at amber. */
+/** Honest but non-blocking: 500×500 is info, not a fake pass, and does not hold the row at amber. */
 export const INFORMATIONAL_CODES = new Set(["image_size_unproven"]);
 
 export function statusForIssues(issues: Issue[] | null): "red" | "amber" | "green" | "unscored" {

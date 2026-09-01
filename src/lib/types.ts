@@ -22,7 +22,7 @@ export type GmcField = (typeof GMC_FIELDS)[number];
 
 export type GmcItem = Record<GmcField, string>;
 
-export type Severity = "error" | "warning";
+export type Severity = "error" | "warning" | "info";
 
 export type Issue = {
   field: GmcField | "row";

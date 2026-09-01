@@ -12,6 +12,20 @@ const PREVIEW: GmcField[] = [
   "video_link",
 ];
 
+function issueSummary(row: ScoredRow): string {
+  if (row.status === "unscored") return "Unlock to score this SKU";
+  const blocking = row.issues.filter((i) => i.severity === "error" || i.severity === "warning");
+  const info = row.issues.filter((i) => i.severity === "info");
+  const parts = [
+    ...blocking.slice(0, 2).map((i) => i.message),
+    ...info.slice(0, 1).map((i) => `(info) ${i.message}`),
+  ];
+  if (!blocking.length && row.status === "green") {
+    return parts.length ? `ready · ${parts.join(" · ")}` : "ok";
+  }
+  return parts.join(" · ") || "ok";
+}
+
 const STATUS: Record<ScoredRow["status"], string> = {
   red: "bg-red-100 text-red-800",
   amber: "bg-amber-100 text-amber-900",
@@ -72,21 +86,16 @@ export function FeedTable({ rows }: { rows: ScoredRow[] }) {
                 );
               })}
               <td className="max-w-[220px] px-2 py-1.5 text-slate">
-                {row.status === "unscored"
-                  ? "Unlock to score this SKU"
-                  : row.issues
-                      .slice(0, 3)
-                      .map((i) => i.message)
-                      .join(" · ") || "ok"}
+                {issueSummary(row)}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="px-3 py-2 text-[11px] text-slate">
-        Showing {PREVIEW.length} of {GMC_FIELDS.length} GMC columns. Red = blocking. Amber =
-        machine-checkable warnings (title promo, ALL CAPS, length). Image 500×500 stays an honest
-        warning and does not by itself block green/ready. Changed cells are marked in red type.
+        Showing {PREVIEW.length} of {GMC_FIELDS.length} GMC columns. Red = blocking errors. Amber =
+        machine-checkable warnings (title promo, ALL CAPS, length). Image 500×500 is an honest
+        info note and does not by itself block green/ready. Changed cells are marked in red type.
       </p>
     </div>
   );

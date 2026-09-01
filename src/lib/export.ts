@@ -26,10 +26,35 @@ export function itemsToPrimaryTsv(items: GmcItem[], watermark = false): string {
   return `\uFEFF${headers}\n${lines.join("\n")}\n`;
 }
 
+export const DOWNLOAD_NAMES = {
+  primary: "feedpatch-primary.tsv",
+  primaryFree: "feedpatch-primary-free.tsv",
+  supplemental: "feedpatch-supplemental.tsv",
+  action: "feedpatch-action.xlsx",
+  actionFree: "feedpatch-action-free.xlsx",
+  meta: "feedpatch-meta-catalog.csv",
+} as const;
+
+export type DownloadPayload = {
+  filename: string;
+  text: string;
+  blob: Blob;
+};
+
+/** Primary GMC TSV the UI actually puts on disk (one file per user gesture). */
+export function primaryTsvPayload(items: GmcItem[], watermark = false): DownloadPayload {
+  const sliced = watermark ? items.slice(0, FREE_EXPORT_ROWS) : items;
+  const text = itemsToPrimaryTsv(sliced, watermark);
+  return {
+    filename: watermark ? DOWNLOAD_NAMES.primaryFree : DOWNLOAD_NAMES.primary,
+    text,
+    blob: tsvBlob(text),
+  };
+}
+
 /** Free-tier primary feed: first N rows, watermarked titles, TSV string + blob. */
-export function freeWatermarkedTsv(items: GmcItem[]): { text: string; blob: Blob } {
-  const text = itemsToPrimaryTsv(items.slice(0, FREE_EXPORT_ROWS), true);
-  return { text, blob: tsvBlob(text) };
+export function freeWatermarkedTsv(items: GmcItem[]): DownloadPayload {
+  return primaryTsvPayload(items, true);
 }
 
 export function supplementalColumns(rows: ScoredRow[]): GmcField[] {
@@ -167,13 +192,14 @@ export function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.setAttribute("download", filename);
+  a.download = filename;
   a.rel = "noopener";
   a.style.display = "none";
   document.body.appendChild(a);
-  // One programmatic click per user gesture. Chrome often drops later <a download> clicks
-  // in the same handler (and ignores download= for some text MIME types if the node is gone).
-  a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+  // HTMLElement.click() is still a user gesture when called from the original
+  // click handler. dispatchEvent(new MouseEvent("click")) is untrusted; Chrome
+  // then ignores download= and will not save a .tsv.
+  a.click();
   window.setTimeout(() => {
     a.remove();
     URL.revokeObjectURL(url);
@@ -181,7 +207,9 @@ export function downloadBlob(filename: string, blob: Blob) {
 }
 
 export function tsvBlob(text: string): Blob {
-  return new Blob([text], { type: "text/tab-separated-values;charset=utf-8" });
+  // application/octet-stream so Chrome always saves a file named .tsv instead
+  // of trying to display text/tab-separated-values.
+  return new Blob([text], { type: "application/octet-stream" });
 }
 
 export function csvBlob(text: string): Blob {

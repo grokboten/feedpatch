@@ -22,7 +22,9 @@ describe("validateItem", () => {
       },
       new Set(),
     );
-    expect(almost.some((i) => i.code === "image_size_unproven")).toBe(true);
+    const size = almost.find((i) => i.code === "image_size_unproven");
+    expect(size).toBeTruthy();
+    expect(size?.severity).toBe("info");
     expect(statusForIssues(almost)).toBe("green");
   });
 

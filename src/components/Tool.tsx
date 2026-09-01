@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { autoMapColumns, detectSource } from "@/lib/columns";
 import {
+  DOWNLOAD_NAMES,
   MERCHANT_CENTER_NOTE,
   actionPlanXlsx,
   collectActionIssues,
   csvBlob,
   downloadBlob,
   freeWatermarkedTsv,
-  itemsToPrimaryTsv,
   itemsToSupplementalTsv,
+  primaryTsvPayload,
   metaCatalogCsv,
   scoreSummary,
   tsvBlob,
@@ -39,10 +40,6 @@ import {
 } from "@/lib/types";
 import { FeedTable } from "./FeedTable";
 
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
 export function Tool() {
   const [feed, setFeed] = useState<ParsedFeed | null>(null);
   const [mapping, setMapping] = useState<ColumnMapping>({});
@@ -53,6 +50,7 @@ export function Tool() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [successFile, setSuccessFile] = useState("");
   const [history, setHistory] = useState<RunSnapshot[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastSaved = useRef("");
@@ -77,6 +75,7 @@ export function Tool() {
     setBusy(true);
     setError("");
     setSuccess(false);
+    setSuccessFile("");
     try {
       const parsed = file === "sample" ? await parseSampleCsv() : await parseFile(file);
       if (!parsed.rows.length) {
@@ -144,42 +143,55 @@ export function Tool() {
     });
   }
 
-  function downloadFreeTsv() {
-    // One user gesture → one <a download>. Chrome often keeps only the first click
-    // when TSV and xlsx fire back-to-back; the watermarked TSV is the product.
-    const items = rows.slice(0, FREE_EXPORT_ROWS).map((r) => r.patched);
-    const { blob } = freeWatermarkedTsv(items);
-    downloadBlob("feedpatch-primary-free.tsv", blob);
+  function markDownloaded(filename: string) {
+    setSuccessFile(filename);
     setSuccess(true);
+  }
+
+  function downloadFreeTsv() {
+    // One user gesture → one HTMLElement.click(). Chrome will not save later
+    // files from the same click, and untrusted MouseEvents ignore download=.
+    const items = rows.slice(0, FREE_EXPORT_ROWS).map((r) => r.patched);
+    const { filename, blob } = freeWatermarkedTsv(items);
+    downloadBlob(filename, blob);
+    markDownloaded(filename);
   }
 
   async function downloadFreeXlsx() {
     const issues = collectActionIssues(rows, FREE_ACTION_ISSUES);
     const buf = await actionPlanXlsx(issues);
     downloadBlob(
-      "feedpatch-action-free.xlsx",
+      DOWNLOAD_NAMES.actionFree,
       new Blob([buf], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       }),
     );
   }
 
-  async function downloadPaid() {
+  function downloadPaidPrimary() {
     const items = rows.map((r) => r.patched);
-    downloadBlob("feedpatch-primary.tsv", tsvBlob(itemsToPrimaryTsv(items, false)));
-    await sleep(200);
-    downloadBlob("feedpatch-supplemental.tsv", tsvBlob(itemsToSupplementalTsv(rows)));
-    await sleep(200);
+    const { filename, blob } = primaryTsvPayload(items);
+    downloadBlob(filename, blob);
+    markDownloaded(filename);
+  }
+
+  function downloadPaidSupplemental() {
+    downloadBlob(DOWNLOAD_NAMES.supplemental, tsvBlob(itemsToSupplementalTsv(rows)));
+  }
+
+  async function downloadPaidXlsx() {
     const buf = await actionPlanXlsx(collectActionIssues(rows));
     downloadBlob(
-      "feedpatch-action.xlsx",
+      DOWNLOAD_NAMES.action,
       new Blob([buf], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       }),
     );
-    await sleep(200);
-    downloadBlob("feedpatch-meta-catalog.csv", csvBlob(metaCatalogCsv(items)));
-    setSuccess(true);
+  }
+
+  function downloadPaidMeta() {
+    const items = rows.map((r) => r.patched);
+    downloadBlob(DOWNLOAD_NAMES.meta, csvBlob(metaCatalogCsv(items)));
   }
 
   function onDrop(e: React.DragEvent) {
@@ -192,14 +204,37 @@ export function Tool() {
     return (
       <section id="tool" className="mx-auto max-w-5xl px-4 py-16">
         <p className="font-mono text-xs uppercase tracking-[0.2em] text-pass">Ready to upload</p>
-        <h2 className="mt-2 font-serif text-4xl">Your TSV is on disk. Six lines for Merchant Center.</h2>
+        <h2 className="mt-2 font-serif text-4xl">
+          {successFile || DOWNLOAD_NAMES.primary} is on disk. Six lines for Merchant Center.
+        </h2>
         <ol className="mt-8 space-y-3 text-sm leading-6 text-slate">
           {MERCHANT_CENTER_NOTE.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ol>
         <div className="mt-10 flex flex-wrap gap-3">
-          {paid ? null : (
+          {paid ? (
+            <>
+              <button
+                className="rounded-full border border-ink px-5 py-2.5 text-sm"
+                onClick={() => downloadPaidSupplemental()}
+              >
+                Download supplemental TSV
+              </button>
+              <button
+                className="rounded-full border border-ink px-5 py-2.5 text-sm"
+                onClick={() => void downloadPaidXlsx()}
+              >
+                Download action xlsx
+              </button>
+              <button
+                className="rounded-full border border-ink px-5 py-2.5 text-sm"
+                onClick={() => downloadPaidMeta()}
+              >
+                Download Meta catalog
+              </button>
+            </>
+          ) : (
             <button
               className="rounded-full border border-ink px-5 py-2.5 text-sm"
               onClick={() => void downloadFreeXlsx()}
@@ -280,7 +315,7 @@ export function Tool() {
           </div>
           <p className="mt-2 text-xs text-slate">
             {paid
-              ? "Full primary TSV, supplemental, action xlsx, Meta catalog, last 10 runs."
+              ? "Paid: the GMC pack button downloads feedpatch-primary.tsv only. Supplemental TSV, action xlsx, and Meta catalog are separate clicks. Last 10 runs saved."
               : `Free: first ${FREE_SCORED_ROWS} SKUs scored. The watermark button downloads a ${FREE_EXPORT_ROWS}-row TSV; action xlsx is a second click (${FREE_ACTION_ISSUES} issues).`}
           </p>
           <p className="mt-2 text-xs text-slate">
@@ -327,12 +362,32 @@ export function Tool() {
             </div>
             <div className="flex flex-wrap gap-2">
               {paid ? (
-                <button
-                  className="rounded-full bg-pass px-4 py-2 text-sm text-white"
-                  onClick={() => void downloadPaid()}
-                >
-                  Download GMC pack
-                </button>
+                <>
+                  <button
+                    className="rounded-full bg-pass px-4 py-2 text-sm text-white"
+                    onClick={() => downloadPaidPrimary()}
+                  >
+                    Download GMC pack
+                  </button>
+                  <button
+                    className="rounded-full border border-ink px-4 py-2 text-sm"
+                    onClick={() => downloadPaidSupplemental()}
+                  >
+                    Supplemental TSV
+                  </button>
+                  <button
+                    className="rounded-full border border-ink px-4 py-2 text-sm"
+                    onClick={() => void downloadPaidXlsx()}
+                  >
+                    Action xlsx
+                  </button>
+                  <button
+                    className="rounded-full border border-ink px-4 py-2 text-sm"
+                    onClick={() => downloadPaidMeta()}
+                  >
+                    Meta catalog
+                  </button>
+                </>
               ) : (
                 <>
                   <button

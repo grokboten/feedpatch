@@ -1,16 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   collectActionIssues,
+  DOWNLOAD_NAMES,
+  downloadBlob,
   freeWatermarkedTsv,
   itemsToPrimaryTsv,
   itemsToSupplementalTsv,
   MERCHANT_CENTER_NOTE,
   metaCatalogCsv,
+  primaryTsvPayload,
   tsvBlob,
 } from "@/lib/export";
 import { emptyItem } from "@/lib/fix";
 import type { ScoredRow } from "@/lib/types";
-import { FREE_ACTION_ISSUES, FREE_EXPORT_ROWS } from "@/lib/types";
+import { FREE_ACTION_ISSUES, FREE_EXPORT_ROWS, GMC_FIELDS } from "@/lib/types";
 
 function row(partial: Partial<ScoredRow["patched"]>, changed: ScoredRow["changed"] = []): ScoredRow {
   const patched = { ...emptyItem(), id: "A", title: "Tee", ...partial };
@@ -60,9 +63,86 @@ describe("exports", () => {
     expect(lines).toHaveLength(1 + FREE_EXPORT_ROWS);
     expect(blob).toBeInstanceOf(Blob);
     expect(blob.size).toBeGreaterThan(0);
-    expect(blob.type).toMatch(/tab-separated-values/);
+    expect(blob.type).toMatch(/octet-stream/);
     const viaHelper = tsvBlob(text);
     expect(viaHelper.size).toBe(blob.size);
+  });
+
+  it("tsvBlob/download payload is a non-empty TSV with GMC headers", async () => {
+    const items = [
+      {
+        ...emptyItem(),
+        id: "SKU-1",
+        title: "Mug",
+        description: "A stoneware mug",
+        link: "https://example.com/mug",
+        image_link: "https://example.com/mug.jpg",
+        price: "19.99 USD",
+        availability: "in_stock",
+      },
+    ];
+    const payload = primaryTsvPayload(items);
+    expect(payload.filename).toBe(DOWNLOAD_NAMES.primary);
+    expect(payload.blob).toBeInstanceOf(Blob);
+    expect(payload.blob.size).toBeGreaterThan(0);
+    expect(payload.blob.type).toMatch(/octet-stream|text\/plain/);
+    expect(payload.text.startsWith("\uFEFF")).toBe(true);
+    const bytes = new Uint8Array(await payload.blob.arrayBuffer());
+    expect(bytes.byteLength).toBeGreaterThan(0);
+    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    const body = await payload.blob.text();
+    expect(body.length).toBeGreaterThan(0);
+    const header = body.replace(/^\uFEFF/, "").split("\n")[0];
+    expect(header.split("\t")).toEqual([...GMC_FIELDS]);
+    expect(body).toContain("SKU-1");
+    expect(body).toContain("Mug");
+
+    const free = primaryTsvPayload(
+      Array.from({ length: 8 }, (_, i) => ({ ...emptyItem(), id: `S${i}`, title: `Item ${i}` })),
+      true,
+    );
+    expect(free.filename).toBe(DOWNLOAD_NAMES.primaryFree);
+    const freeBody = await free.blob.text();
+    const freeLines = freeBody.replace(/^\uFEFF/, "").split("\n").filter(Boolean);
+    expect(freeLines[0].split("\t")).toEqual([...GMC_FIELDS]);
+    expect(freeLines).toHaveLength(1 + FREE_EXPORT_ROWS);
+  });
+
+  it("downloadBlob uses HTMLElement.click, not an untrusted MouseEvent", () => {
+    const click = vi.fn();
+    const dispatchEvent = vi.fn();
+    const remove = vi.fn();
+    const setAttribute = vi.fn();
+    const a = {
+      href: "",
+      download: "",
+      rel: "",
+      style: { display: "" },
+      setAttribute,
+      click,
+      dispatchEvent,
+      remove,
+    };
+    const appendChild = vi.fn();
+    const createElement = vi.fn(() => a);
+    const createObjectURL = vi.fn(() => "blob:feedpatch-test");
+    const revokeObjectURL = vi.fn();
+    const setTimeoutFn = vi.fn();
+
+    vi.stubGlobal("document", { createElement, body: { appendChild } });
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    vi.stubGlobal("window", { setTimeout: setTimeoutFn });
+
+    try {
+      downloadBlob("feedpatch-primary.tsv", tsvBlob("id\ttitle\nSKU-1\tMug\n"));
+      expect(createElement).toHaveBeenCalledWith("a");
+      expect(a.download).toBe("feedpatch-primary.tsv");
+      expect(appendChild).toHaveBeenCalled();
+      expect(click).toHaveBeenCalledTimes(1);
+      expect(dispatchEvent).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("supplemental TSV is id plus changed columns only", () => {
