@@ -123,7 +123,7 @@ export function Tool() {
       if (data.ok) {
         setPaid(true);
         if (persist) saveStoredLicense(key.trim());
-        setLicenseMsg(data.source === "dev" ? "Demo license accepted. Paid exports unlocked." : data.source === "signed" ? "Signed license accepted. Paid exports unlocked." : "License unlocked.");
+        setLicenseMsg(data.source === "dev" ? "Demo license accepted. Paid exports unlocked." : data.source === "signed" ? "Signed license accepted. Paid exports unlocked." : data.source === "polar" ? "Polar license accepted. Paid exports unlocked." : "License unlocked.");
       } else {
         setPaid(false);
         setLicenseMsg(data.error || "Invalid license key");
@@ -320,8 +320,8 @@ export function Tool() {
           </p>
           <p className="mt-2 text-xs text-slate">
             Demo license key: <code className="font-mono text-ink">{DEV_LICENSE_KEY}</code> unlocks
-            paid exports when Gumroad env vars are not set. When Gumroad is configured, that demo
-            key is rejected and a real license is required.
+            paid exports when Polar/Gumroad env vars are not set. When commerce verification is
+            configured, that demo key is rejected — paste a Polar (or Gumroad) license key instead.
           </p>
           {licenseMsg ? <p className="mt-1 text-xs">{licenseMsg}</p> : null}
           {paid ? (

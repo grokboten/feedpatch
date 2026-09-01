@@ -66,11 +66,11 @@ export function Landing() {
           <div id="price">
             <h2 className="font-serif text-2xl">$39, once</h2>
             <p className="mt-3 text-sm leading-6 text-slate">
-              A license later on Gumroad unlocks the full primary TSV, a supplemental TSV (id +
-              changed columns only), an action workbook, a Meta catalog CSV, and the last 10 runs
-              in localStorage. Not a Shopify app. Not a monthly feed host. No OAuth. On this live
-              demo, enter <code className="font-mono">FEEDPATCH-DEV</code> in the license box to
-              unlock paid exports (rejected once Gumroad verification is wired).
+              A license later on Polar (or Gumroad) unlocks the full primary TSV, a supplemental
+              TSV (id + changed columns only), an action workbook, a Meta catalog CSV, and the last
+              10 runs in localStorage. Not a Shopify app. Not a monthly feed host. No OAuth. On
+              this live demo, enter <code className="font-mono">FEEDPATCH-DEV</code> in the license
+              box to unlock paid exports (rejected once Polar/Gumroad verification is wired).
             </p>
           </div>
         </div>
