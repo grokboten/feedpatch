@@ -34,7 +34,12 @@ export function Landing() {
           >
             Load the 40-row demo
           </a>
-          <a href="#price" className="rounded-full border border-ink px-5 py-2.5 text-sm">
+          <a
+            href="https://buy.polar.sh/polar_cl_pMF8fjJvGT2GqhDNk89oahf68APOdTT2zfY7n0bzV4F"
+            target="_blank"
+            rel="noopener"
+            className="rounded-full border border-ink px-5 py-2.5 text-sm"
+          >
             $39 one-time
           </a>
         </div>
